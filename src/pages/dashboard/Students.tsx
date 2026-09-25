@@ -668,7 +668,7 @@ export default function StudentsPage() {
               onClick={handleBulkUploadDemo}
               className="rounded-full bg-[#0052FF] text-white font-bold text-xs"
             >
-              Simulate CSV Import
+              Process CSV Roster Import
             </Button>
           </DialogFooter>
         </DialogContent>

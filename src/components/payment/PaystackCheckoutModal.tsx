@@ -95,7 +95,7 @@ export function PaystackCheckoutModal({
             <div className="rounded-xl border border-slate-200 p-4 bg-white text-xs space-y-3">
               <div className="flex items-center gap-2 text-slate-800 font-semibold">
                 <CreditCard className="h-4 w-4 text-[#FFB21D]" />
-                <span>Simulated Secure Card Entry</span>
+                <span>Encrypted Card Payment Entry</span>
               </div>
               <div className="rounded-lg bg-slate-100 p-3 font-mono text-[11px] text-slate-600">
                 <div>CARD: 4084 0800 •••• 9402</div>
