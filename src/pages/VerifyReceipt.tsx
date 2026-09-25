@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useStore, formatNaira } from "@/lib/store";
 import { CheckCircle2, XCircle, ArrowLeft, Building2, Loader2 } from "lucide-react";
+import { apiGet } from "@/lib/api";
 
 export default function VerifyReceipt() {
   const { receiptId } = useParams<{ receiptId: string }>();
@@ -34,8 +35,7 @@ export default function VerifyReceipt() {
   useEffect(() => {
     if (!localPayment && targetId && targetId !== "demo") {
       setIsVerifying(true);
-      fetch(`/api/payments/verify/${encodeURIComponent(targetId)}`)
-        .then((res) => res.json())
+      apiGet(`/api/payments/verify/${encodeURIComponent(targetId)}`)
         .then((data) => {
           if (data.success && data.data?.payment) {
             setRemoteData({

@@ -39,6 +39,9 @@ export type Payment = {
   receiptNumber: string;
   schoolId: string;
   studentId: string;
+  studentName?: string;
+  studentAdmission?: string;
+  className?: string;
   amount: number;
   items?: PaymentItem[];
   method: "Card" | "Bank Transfer" | "USSD" | "WhatsApp";

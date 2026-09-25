@@ -22,6 +22,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { apiPost } from "@/lib/api";
 
 const INITIAL_FORM: IntegrationFormData = {
   schoolName: "",
@@ -88,16 +89,10 @@ export default function SchoolRegisterPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("/api/school/integration-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const data = await apiPost("/api/school/integration-request", formData);
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || data.message || "Failed to submit integration request");
+      if (!data.success) {
+        throw new Error(data.error || "Failed to submit integration request");
       }
 
       setSubmittedRequest({

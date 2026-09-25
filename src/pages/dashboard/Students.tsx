@@ -33,12 +33,11 @@ import {
   balance,
   statusOf,
   formatNaira,
-  addStudent,
-  updateStudent,
-  deleteStudent,
   Student,
+  addStudent,
 } from "@/lib/store";
-import { useSchoolLiveSync } from "@/lib/school-sync";
+import { useSchoolLiveSync, notifySchoolDataUpdated } from "@/lib/school-sync";
+import { apiPost, apiPut, apiDelete } from "@/lib/api";
 import { toast } from "sonner";
 import { StudentFormModal, StudentFormData } from "@/components/dashboard/StudentFormModal";
 
@@ -60,7 +59,10 @@ export default function StudentsPage() {
   usePageTitle("Students Directory : Ranta Pay Bursar OS");
   const activeSchool = useStore((s) => s.settings);
   const allStudents = useStore((s) => s.students);
-  useSchoolLiveSync(activeSchool.id);
+  const { isSyncing, refetch } = useSchoolLiveSync(activeSchool.id);
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const students = useMemo(() => {
     return allStudents.filter((s) => s.schoolId === activeSchool.id);
@@ -194,41 +196,64 @@ export default function StudentsPage() {
     setOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.admissionNumber.trim() || !form.name.trim() || !form.className.trim()) {
       return toast.error("Please fill in admission number, student name, and class.");
     }
-    const fees = [
-      { category: "Tuition", amount: Number(form.tuition) || 0, title: "Term Tuition" },
-      { category: "Books", amount: Number(form.books) || 0, title: "Curriculum Books" },
-      { category: "Uniform", amount: Number(form.uniform) || 0, title: "School Uniform" },
-    ].filter((f) => f.amount > 0);
+    const totalFees =
+      (Number(form.tuition) || 0) + (Number(form.books) || 0) + (Number(form.uniform) || 0);
 
-    if (editing) {
-      updateStudent(editing.id, {
-        admissionNumber: form.admissionNumber.trim(),
-        name: form.name.trim(),
-        className: form.className.trim(),
-        parentName: form.parentName.trim(),
-        parentPhone: form.parentPhone.trim(),
-        parentEmail: form.parentEmail.trim() || undefined,
-        fees,
-      });
-      toast.success("Student updated successfully.");
-    } else {
-      addStudent({
-        schoolId: activeSchool.id,
-        admissionNumber: form.admissionNumber.trim(),
-        name: form.name.trim(),
-        className: form.className.trim(),
-        parentName: form.parentName.trim(),
-        parentPhone: form.parentPhone.trim(),
-        parentEmail: form.parentEmail.trim() || undefined,
-        fees,
-      });
-      toast.success("New student added to school directory.");
+    setIsSaving(true);
+    try {
+      if (editing) {
+        await apiPut(`/api/school/${activeSchool.id}/students/${editing.id}`, {
+          admissionNumber: form.admissionNumber.trim(),
+          name: form.name.trim(),
+          className: form.className.trim(),
+          parentName: form.parentName.trim(),
+          parentPhone: form.parentPhone.trim(),
+          parentEmail: form.parentEmail.trim() || null,
+          totalFees,
+        });
+        toast.success("Student updated successfully.");
+      } else {
+        await apiPost(`/api/school/${activeSchool.id}/students`, {
+          schoolId: activeSchool.id,
+          admissionNumber: form.admissionNumber.trim(),
+          name: form.name.trim(),
+          className: form.className.trim(),
+          parentName: form.parentName.trim(),
+          parentPhone: form.parentPhone.trim(),
+          parentEmail: form.parentEmail.trim() || null,
+          totalFees,
+        });
+        toast.success("New student enrolled successfully.");
+      }
+      setOpen(false);
+      notifySchoolDataUpdated(activeSchool.id);
+      await refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save student.");
+    } finally {
+      setIsSaving(false);
     }
-    setOpen(false);
+  };
+
+  const handleDelete = async (student: Student) => {
+    if (!confirm(`Are you sure you want to remove ${student.name} from the school directory?`)) {
+      return;
+    }
+    setDeletingId(student.id);
+    try {
+      await apiDelete(`/api/school/${activeSchool.id}/students/${student.id}`);
+      toast.success(`${student.name} removed from roster.`);
+      notifySchoolDataUpdated(activeSchool.id);
+      await refetch();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove student.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleBulkUploadDemo = () => {
@@ -555,13 +580,9 @@ export default function StudentsPage() {
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Remove ${s.name}?`)) {
-                              deleteStudent(s.id);
-                              toast.info(`${s.name} removed from roster.`);
-                            }
-                          }}
-                          className="p-1.5 rounded-full hover:bg-rose-50 text-rose-600"
+                          onClick={() => handleDelete(s)}
+                          disabled={deletingId === s.id}
+                          className="p-1.5 rounded-full hover:bg-rose-50 text-rose-600 disabled:opacity-50"
                           title="Remove Student"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -612,6 +633,7 @@ export default function StudentsPage() {
         form={form}
         onFormChange={setForm}
         onSave={handleSave}
+        isSaving={isSaving}
       />
 
       {/* CSV Bulk Import Demo Dialog */}

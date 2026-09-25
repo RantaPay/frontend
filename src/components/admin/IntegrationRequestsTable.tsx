@@ -37,6 +37,8 @@ interface IntegrationRequestsTableProps {
   onOnboardRequest?: (req: IntegrationRequestItem) => void;
 }
 
+import { apiGet, apiPatch } from "@/lib/api";
+
 export function IntegrationRequestsTable({ onOnboardRequest }: IntegrationRequestsTableProps) {
   const [requests, setRequests] = useState<IntegrationRequestItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,10 +46,9 @@ export function IntegrationRequestsTable({ onOnboardRequest }: IntegrationReques
   const fetchRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/integration-requests");
-      if (res.ok) {
-        const data = await res.json();
-        setRequests(data?.data || []);
+      const res = await apiGet("/api/admin/integration-requests");
+      if (res.success && Array.isArray(res.data)) {
+        setRequests(res.data);
       }
     } catch {
       // Offline fallback
@@ -62,19 +63,17 @@ export function IntegrationRequestsTable({ onOnboardRequest }: IntegrationReques
 
   const updateStatus = async (id: string, nextStatus: IntegrationRequestItem["status"]) => {
     try {
-      const res = await fetch(`/api/admin/integration-requests/${id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+      const res = await apiPatch(`/api/admin/integration-requests/${id}/status`, {
+        status: nextStatus,
       });
 
-      if (res.ok) {
+      if (res.success) {
         setRequests((prev) =>
           prev.map((r) => (r.id === id ? { ...r, status: nextStatus } : r))
         );
         toast.success(`Application status updated to ${nextStatus}`);
       } else {
-        toast.error("Failed to update status");
+        toast.error(res.error || "Failed to update status");
       }
     } catch {
       toast.error("Network error updating status");

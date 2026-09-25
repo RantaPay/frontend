@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { syncBackendSchoolData, Student, Payment } from "./store";
+import { syncBackendSchoolData, syncBackendSchoolRecord, Student, Payment } from "./store";
+import { apiGet } from "./api";
 
 export interface BackendStudentDTO {
   id: string;
@@ -30,67 +31,103 @@ export interface BackendPaymentDTO {
   className: string;
 }
 
+export interface DashboardData {
+  school: any;
+  stats: {
+    totalStudents: number;
+    totalBilled: number;
+    totalCollected: number;
+    totalOutstanding: number;
+    collectionRate: number;
+    paidCount: number;
+    partialCount: number;
+    unpaidCount: number;
+  };
+  categoryBreakdown: Array<{ name: string; amount: number }>;
+  classDebtList: Array<{
+    className: string;
+    billed: number;
+    collected: number;
+    debt: number;
+    studentCount: number;
+  }>;
+}
+
 /**
- * Fetches real students and payments from PostgreSQL backend and syncs with school store
+ * Fetches real students, payments, and dashboard metrics from PostgreSQL backend
  */
-export async function fetchAndSyncSchool(schoolId: string): Promise<boolean> {
-  if (!schoolId) return false;
+export async function fetchAndSyncSchool(schoolId: string): Promise<DashboardData | null> {
+  if (!schoolId) return null;
 
   try {
-    const [studentsRes, paymentsRes] = await Promise.all([
-      fetch(`/api/school/${schoolId}/students`).then((r) => r.json()),
-      fetch(`/api/school/${schoolId}/payments`).then((r) => r.json()),
+    const [dashboardRes, studentsRes, paymentsRes] = await Promise.all([
+      apiGet(`/api/school/${schoolId}/dashboard`),
+      apiGet(`/api/school/${schoolId}/students`),
+      apiGet(`/api/school/${schoolId}/payments`),
     ]);
 
-    if (!studentsRes.success || !paymentsRes.success) {
-      return false;
+    let dashboardData: DashboardData | null = null;
+    if (dashboardRes.success && dashboardRes.data) {
+      dashboardData = dashboardRes.data as DashboardData;
+      if (dashboardRes.data.school) {
+        syncBackendSchoolRecord(dashboardRes.data.school);
+      }
     }
 
-    const students: Student[] = (studentsRes.data || []).map((s: BackendStudentDTO) => ({
-      id: s.id,
-      schoolId: s.schoolId,
-      admissionNumber: s.admissionNumber,
-      name: s.name,
-      className: s.className,
-      parentName: s.parentName,
-      parentPhone: s.parentPhone,
-      parentEmail: s.parentEmail,
-      paid: s.paidAmount ?? 0,
-      fees: [
-        {
-          category: "Tuition",
-          amount: s.totalFees ?? 0,
-          title: "Tuition & Standard Levies",
-        },
-      ],
-    }));
+    if (studentsRes.success && Array.isArray(studentsRes.data)) {
+      const students: Student[] = studentsRes.data.map((s: BackendStudentDTO) => ({
+        id: s.id,
+        schoolId: s.schoolId,
+        admissionNumber: s.admissionNumber,
+        name: s.name,
+        className: s.className,
+        parentName: s.parentName,
+        parentPhone: s.parentPhone,
+        parentEmail: s.parentEmail,
+        paid: s.paidAmount ?? 0,
+        fees: [
+          {
+            category: "Tuition",
+            amount: s.totalFees ?? 0,
+            title: "Tuition & Standard Levies",
+          },
+        ],
+      }));
 
-    const payments: Payment[] = (paymentsRes.data || []).map((p: BackendPaymentDTO) => ({
-      id: p.id,
-      receiptNumber: p.receiptNumber,
-      schoolId,
-      studentId: p.studentId || p.id,
-      amount: p.amount,
-      method: p.method,
-      reference: p.reference,
-      date: p.date,
-      payerEmail: p.payerEmail,
-      payerPhone: p.payerPhone,
-      status: p.status,
-      items: [
-        {
-          title: `Tuition Settlement (${p.studentName})`,
-          category: "Tuition",
-          amount: p.amount,
-        },
-      ],
-    }));
+      const payments: Payment[] = (paymentsRes.success && Array.isArray(paymentsRes.data)
+        ? paymentsRes.data
+        : []
+      ).map((p: BackendPaymentDTO) => ({
+        id: p.id,
+        receiptNumber: p.receiptNumber,
+        schoolId,
+        studentId: p.studentId || p.id,
+        studentName: p.studentName,
+        studentAdmission: p.studentAdmission,
+        className: p.className,
+        amount: p.amount,
+        method: p.method,
+        reference: p.reference,
+        date: p.date,
+        payerEmail: p.payerEmail,
+        payerPhone: p.payerPhone,
+        status: p.status,
+        items: [
+          {
+            title: `Tuition Settlement (${p.studentName})`,
+            category: "Tuition",
+            amount: p.amount,
+          },
+        ],
+      }));
 
-    syncBackendSchoolData(schoolId, students, payments);
-    return true;
+      syncBackendSchoolData(schoolId, students, payments);
+    }
+
+    return dashboardData;
   } catch (err) {
     console.warn("Could not sync school from backend, using current store state:", err);
-    return false;
+    return null;
   }
 }
 
@@ -110,11 +147,15 @@ export function notifySchoolDataUpdated(schoolId?: string) {
  */
 export function useSchoolLiveSync(schoolId: string) {
   const [isSyncing, setIsSyncing] = useState(false);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
 
   const sync = useCallback(async () => {
     if (!schoolId) return;
     setIsSyncing(true);
-    await fetchAndSyncSchool(schoolId);
+    const data = await fetchAndSyncSchool(schoolId);
+    if (data) {
+      setDashboardData(data);
+    }
     setIsSyncing(false);
   }, [schoolId]);
 
@@ -131,5 +172,5 @@ export function useSchoolLiveSync(schoolId: string) {
     return () => window.removeEventListener("rantapay:school_updated", handleEvent);
   }, [schoolId, sync]);
 
-  return { isSyncing, refetch: sync };
+  return { isSyncing, refetch: sync, dashboardData };
 }

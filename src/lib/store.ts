@@ -79,7 +79,7 @@ function hydrateState(rawObj: Partial<State>): State {
   const activeSchool = schools.find((s) => s.id === activeSchoolId) || schools[0];
 
   const students =
-    rawObj.students && Array.isArray(rawObj.students) && rawObj.students.length > 0
+    rawObj.students && Array.isArray(rawObj.students)
       ? rawObj.students.filter((st) => schools.some((sc) => sc.id === st.schoolId))
       : seedStudents;
   const storeItems =
@@ -92,7 +92,7 @@ function hydrateState(rawObj: Partial<State>): State {
   return {
     schools,
     activeSchoolId,
-    students: students.length > 0 ? students : seedStudents,
+    students,
     storeItems,
     payments,
     subscribers,
@@ -366,6 +366,42 @@ export function recordPayment(
   }));
 
   return payment;
+}
+
+export function syncBackendSchoolRecord(school: School) {
+  if (!school || !school.id) return;
+  setState((state) => {
+    const existingIndex = state.schools.findIndex(
+      (s) => s.id === school.id || s.slug === school.slug
+    );
+    const newSchools = [...state.schools];
+    if (existingIndex >= 0) {
+      newSchools[existingIndex] = { ...newSchools[existingIndex], ...school };
+    } else {
+      newSchools.push(school);
+    }
+    return {
+      ...state,
+      schools: newSchools,
+      activeSchoolId: school.id,
+      settings: school,
+    };
+  });
+}
+
+export function syncBackendSchools(incomingSchools: School[]) {
+  if (!incomingSchools || incomingSchools.length === 0) return;
+  setState((state) => {
+    const active =
+      incomingSchools.find((s) => s.id === state.activeSchoolId || s.slug === state.activeSchoolId) ||
+      incomingSchools[0];
+    return {
+      ...state,
+      schools: incomingSchools,
+      activeSchoolId: active.id,
+      settings: active,
+    };
+  });
 }
 
 export function syncBackendSchoolData(

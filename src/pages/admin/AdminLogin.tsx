@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { loginSuperAdmin } from "@/lib/store";
+import { setAuthSession } from "@/lib/auth";
+import { apiPost } from "@/lib/api";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
@@ -15,13 +16,30 @@ export default function AdminLogin() {
   const nav = useNavigate();
   const [email, setEmail] = useState("admin@rantapay.ng");
   const [pwd, setPwd] = useState("supersecret");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !pwd) return toast.error("Please enter credentials.");
-    loginSuperAdmin(email);
-    toast.success("Welcome to Ranta Pay Platform Operations.");
-    nav("/admin/dashboard");
+    setIsSubmitting(true);
+    try {
+      const res = await apiPost("/api/admin/auth/login", {
+        email: email.trim(),
+        password: pwd,
+      });
+
+      if (res.success && res.data) {
+        setAuthSession(res.data.token, res.data.user);
+        toast.success("Welcome to Ranta Pay Platform Operations.");
+        nav("/admin/dashboard");
+      } else {
+        toast.error("Super Admin authentication failed.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Invalid Super Admin credentials.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

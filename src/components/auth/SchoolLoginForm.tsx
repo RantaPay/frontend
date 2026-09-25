@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { setAuthSession } from "@/lib/auth";
+import { apiPost } from "@/lib/api";
+
 export function SchoolLoginForm() {
   const schools = useStore((s) => s.schools);
   const nav = useNavigate();
@@ -32,30 +35,20 @@ export function SchoolLoginForm() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/school/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: schoolEmail,
-          schoolId: selectedSchoolId,
-          password: schoolPassword,
-        }),
+      const res = await apiPost("/api/school/auth/login", {
+        email: schoolEmail,
+        password: schoolPassword,
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        login(schoolEmail, data?.data?.user?.schoolId || selectedSchoolId);
+      if (res.success && res.data) {
+        setAuthSession(res.data.token, res.data.user);
         toast.success("Welcome back! Staff bursar session authenticated.");
         nav("/school/dashboard");
       } else {
-        login(schoolEmail, selectedSchoolId);
-        toast.success("Welcome back to your school bursar operating system.");
-        nav("/school/dashboard");
+        toast.error("Authentication failed. Please check your credentials.");
       }
-    } catch {
-      login(schoolEmail, selectedSchoolId);
-      toast.success("Welcome back to your school bursar dashboard.");
-      nav("/school/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "Invalid email or password.");
     } finally {
       setIsSubmitting(false);
     }

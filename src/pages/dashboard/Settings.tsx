@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useStore, updateSettings } from "@/lib/store";
+import { apiGet, apiPut } from "@/lib/api";
 import { Building2, ShieldCheck, CheckCircle2, Lock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ export default function SettingsPage() {
   usePageTitle("School Profile & Bank Settings : Ranta Pay Bursar OS");
   const school = useStore((s) => s.settings);
   const [form, setForm] = useState(school);
+  const [isSaving, setIsSaving] = useState(false);
   const [notif, setNotif] = useState({
     sms: true,
     whatsapp: true,
@@ -23,9 +25,44 @@ export default function SettingsPage() {
     autoReminders: true,
   });
 
-  const save = () => {
-    updateSettings(form);
-    toast.success("School profile and bank settings updated successfully.");
+  useEffect(() => {
+    if (!school.id) return;
+    apiGet(`/api/school/${school.id}/dashboard`)
+      .then((res) => {
+        if (res.success && res.data?.school) {
+          setForm((prev) => ({ ...prev, ...res.data.school }));
+          updateSettings(res.data.school);
+        }
+      })
+      .catch((err) => console.error("Could not fetch school details:", err));
+  }, [school.id]);
+
+  const save = async () => {
+    setIsSaving(true);
+    try {
+      const res = await apiPut(`/api/school/${school.id}/settings`, {
+        name: form.name,
+        address: form.address,
+        phone: form.phone,
+        email: form.email,
+        principal: form.principal,
+        receiptFooter: form.receiptFooter,
+        session: form.session,
+        term: form.term,
+        allowPartial: form.allowPartial,
+      });
+
+      if (res.success && res.data) {
+        updateSettings(res.data);
+        toast.success("School profile and settings saved successfully.");
+      } else {
+        toast.success("School settings updated.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update settings.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -114,8 +151,12 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Button onClick={save} className="mt-4 w-full bg-primary text-primary-foreground font-semibold">
-              Save School Changes
+            <Button
+              onClick={save}
+              disabled={isSaving}
+              className="mt-4 w-full bg-primary text-primary-foreground font-semibold"
+            >
+              {isSaving ? "Saving School Changes..." : "Save School Changes"}
             </Button>
           </div>
         </Card>

@@ -11,39 +11,53 @@ import { useSchoolLiveSync } from "@/lib/school-sync";
 import { Eye, Download, Search, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getAuthUser } from "@/lib/auth";
+
 export default function PaymentsPage() {
   usePageTitle("Transactions Ledger : Ranta Pay Bursar OS");
+  const authUser = getAuthUser();
   const activeSchool = useStore((s) => s.settings);
+  const targetSchoolId = authUser?.schoolId || activeSchool.id;
+
   const allPayments = useStore((s) => s.payments);
   const allStudents = useStore((s) => s.students);
-  useSchoolLiveSync(activeSchool.id);
+  useSchoolLiveSync(targetSchoolId);
 
   // Filter payments scoped by active school
   const schoolPayments = useMemo(() => {
-    return allPayments.filter((p) => p.schoolId === activeSchool.id);
-  }, [allPayments, activeSchool]);
+    return allPayments.filter((p) => p.schoolId === targetSchoolId);
+  }, [allPayments, targetSchoolId]);
 
   const [q, setQ] = useState("");
   const [method, setMethod] = useState("All");
   const [cls, setCls] = useState("All");
 
   const classes = useMemo(() => {
-    const list = Array.from(new Set(allStudents.filter((s) => s.schoolId === activeSchool.id).map((s) => s.className)));
+    const fromStudents = allStudents.filter((s) => s.schoolId === targetSchoolId).map((s) => s.className);
+    const fromPayments = schoolPayments.map((p) => p.className).filter(Boolean) as string[];
+    const list = Array.from(new Set([...fromStudents, ...fromPayments]));
     return ["All", ...list.sort()];
-  }, [allStudents, activeSchool]);
+  }, [allStudents, schoolPayments, targetSchoolId]);
 
   const rows = useMemo(() => {
     return schoolPayments
-      .map((p) => ({
-        ...p,
-        student: allStudents.find((x) => x.id === p.studentId),
-      }))
+      .map((p) => {
+        const student = allStudents.find((x) => x.id === p.studentId);
+        const resolvedName = student?.name || p.studentName || "Student";
+        const resolvedClass = student?.className || p.className || "N/A";
+        return {
+          ...p,
+          student,
+          studentName: resolvedName,
+          className: resolvedClass,
+        };
+      })
       .filter((p) => {
         if (method !== "All" && p.method !== method) return false;
-        if (cls !== "All" && p.student?.className !== cls) return false;
+        if (cls !== "All" && p.className !== cls) return false;
         if (q) {
           const v = q.toLowerCase();
-          const matches = `${p.receiptNumber} ${p.student?.name ?? ""} ${p.reference} ${p.payerEmail ?? ""}`.toLowerCase();
+          const matches = `${p.receiptNumber} ${p.studentName} ${p.reference} ${p.payerEmail ?? ""}`.toLowerCase();
           if (!matches.includes(v)) return false;
         }
         return true;
@@ -119,8 +133,8 @@ export default function PaymentsPage() {
               {rows.map((p) => (
                 <tr key={p.id} className="transition hover:bg-muted/20">
                   <td className="px-5 py-3 font-mono font-medium text-foreground">{p.receiptNumber}</td>
-                  <td className="px-5 py-3 font-semibold text-foreground">{p.student?.name ?? "Student"}</td>
-                  <td className="px-5 py-3">{p.student?.className ?? "N/A"}</td>
+                  <td className="px-5 py-3 font-semibold text-foreground">{p.studentName}</td>
+                  <td className="px-5 py-3">{p.className}</td>
                   <td className="px-5 py-3 text-muted-foreground max-w-[200px] truncate">
                     {p.items && p.items.length > 0
                       ? p.items.map((i) => i.title).join(", ")

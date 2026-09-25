@@ -1,24 +1,58 @@
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
-import { Printer, Download, Home, CheckCircle2, QrCode, ShieldCheck, Mail } from "lucide-react";
+import { Printer, Download, Home, CheckCircle2, QrCode, ShieldCheck, Mail, Loader2 } from "lucide-react";
 import { useStore, balance, formatNaira } from "@/lib/store";
+import { apiGet } from "@/lib/api";
 
 export default function ReceiptPage() {
   const { receiptId } = useParams<{ receiptId: string }>();
-  const payment = useStore((s) => s.payments.find((p) => p.id === receiptId));
-  const student = useStore((s) => s.students.find((x) => x.id === payment?.studentId));
+  const localPayment = useStore((s) => s.payments.find((p) => p.id === receiptId));
+  const localStudent = useStore((s) => s.students.find((x) => x.id === localPayment?.studentId));
   const schools = useStore((s) => s.schools);
-  const school = schools.find((sch) => sch.id === payment?.schoolId) || schools[0];
+  const localSchool = schools.find((sch) => sch.id === localPayment?.schoolId) || schools[0];
+
+  const [remoteData, setRemoteData] = useState<{ payment: any; student: any; school: any } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if ((!localPayment || !localStudent) && receiptId) {
+      setIsLoading(true);
+      apiGet(`/api/payments/verify/${encodeURIComponent(receiptId)}`)
+        .then((res) => {
+          if (res.success && res.data?.payment) {
+            setRemoteData(res.data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    }
+  }, [localPayment, localStudent, receiptId]);
+
+  const payment = localPayment || remoteData?.payment;
+  const student = localStudent || remoteData?.student;
+  const school = (localPayment && localSchool) || remoteData?.school || schools[0];
 
   usePageTitle(
     payment
       ? `Receipt ${payment.receiptNumber} : ${school?.name || "Ranta Pay"}`
       : "Receipt Not Found"
   );
+
+  if (isLoading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background p-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs text-muted-foreground">Retrieving verified clearance slip...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!payment || !student || !school) {
     return (
@@ -149,7 +183,7 @@ export default function ReceiptPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {payment.items && payment.items.length > 0 ? (
-                    payment.items.map((item, idx) => (
+                    payment.items.map((item: any, idx: number) => (
                       <tr key={idx}>
                         <td className="py-2.5 px-3 font-medium text-foreground">{item.title}</td>
                         <td className="py-2.5 px-3 text-muted-foreground">{item.category}</td>

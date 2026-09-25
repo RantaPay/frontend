@@ -16,6 +16,7 @@ import { PaystackCheckoutModal } from "@/components/payment/PaystackCheckoutModa
 import { StudentFeeItemsSelector } from "@/components/payment/StudentFeeItemsSelector";
 import { PaymentSummaryCard } from "@/components/payment/PaymentSummaryCard";
 import { notifySchoolDataUpdated } from "@/lib/school-sync";
+import { apiGet, apiPost } from "@/lib/api";
 
 export default function PayStudent() {
   const { schoolSlug, studentId } = useParams<{ schoolSlug?: string; studentId: string }>();
@@ -106,7 +107,7 @@ export default function PayStudent() {
   const handleVerifyAndComplete = async (ref: string, items: PaymentItem[]) => {
     try {
       setIsProcessing(true);
-      const res = await fetch(`/api/payments/verify/${ref}`).then((r) => r.json());
+      const res = await apiGet(`/api/payments/verify/${ref}`);
       if (res.success && res.data?.payment) {
         const p = res.data.payment;
         recordPayment(student.id, totalPayable, method, {
@@ -144,21 +145,16 @@ export default function PayStudent() {
 
     try {
       // 1. Initialize real Paystack transaction with backend
-      const initRes = await fetch("/api/payments/initialize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          schoolId: school.id,
-          studentId: student.id,
-          amount: totalPayable,
-          method,
-          payerEmail: payerEmail.trim() || student.parentEmail || "parent@rantapay.ng",
-          payerPhone: payerPhone.trim() || student.parentPhone || undefined,
-          items,
-        }),
+      const initData = await apiPost("/api/payments/initialize", {
+        schoolId: school.id,
+        studentId: student.id,
+        amount: totalPayable,
+        method,
+        payerEmail: payerEmail.trim() || student.parentEmail || "parent@rantapay.ng",
+        payerPhone: payerPhone.trim() || student.parentPhone || undefined,
+        items,
       });
 
-      const initData = await initRes.json();
       if (!initData.success || !initData.data?.reference) {
         throw new Error(initData.error || "Payment initialization failed");
       }
@@ -170,7 +166,7 @@ export default function PayStudent() {
       const PaystackPop = (window as any).PaystackPop;
       let publicKey: string | null = null;
       try {
-        const pkRes = await fetch("/api/payments/public-key").then((r) => r.json());
+        const pkRes = await apiGet("/api/payments/public-key");
         publicKey = pkRes?.data?.publicKey;
       } catch {}
 

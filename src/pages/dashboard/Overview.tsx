@@ -14,32 +14,39 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useMemo } from "react";
+import { getAuthUser } from "@/lib/auth";
 
 export default function Overview() {
   usePageTitle("School Overview : Ranta Pay Bursar OS");
+  const authUser = getAuthUser();
   const activeSchool = useStore((s) => s.settings);
+  const targetSchoolId = authUser?.schoolId || activeSchool.id;
+
   const allStudents = useStore((s) => s.students);
   const allPayments = useStore((s) => s.payments);
 
   // Live real-time PostgreSQL synchronization
-  useSchoolLiveSync(activeSchool.id);
+  const { dashboardData } = useSchoolLiveSync(targetSchoolId);
 
   const students = useMemo(() => {
-    return allStudents.filter((s) => s.schoolId === activeSchool.id);
-  }, [allStudents, activeSchool]);
+    return allStudents.filter((s) => s.schoolId === targetSchoolId);
+  }, [allStudents, targetSchoolId]);
 
   const payments = useMemo(() => {
-    return allPayments.filter((p) => p.schoolId === activeSchool.id);
-  }, [allPayments, activeSchool]);
+    return allPayments.filter((p) => p.schoolId === targetSchoolId);
+  }, [allPayments, targetSchoolId]);
 
-  const expected = students.reduce((a, s) => a + totalFees(s), 0);
-  const collected = students.reduce((a, s) => a + s.paid, 0);
-  const outstanding = students.reduce((a, s) => a + balance(s), 0);
-  const paidCount = students.filter((s) => statusOf(s) === "Paid").length;
-  const partialCount = students.filter((s) => statusOf(s) === "Partial").length;
-  const unpaidCount = students.filter((s) => statusOf(s) === "Unpaid").length;
+  const expected = dashboardData?.stats?.totalBilled ?? students.reduce((a, s) => a + totalFees(s), 0);
+  const collected = dashboardData?.stats?.totalCollected ?? students.reduce((a, s) => a + s.paid, 0);
+  const outstanding = dashboardData?.stats?.totalOutstanding ?? students.reduce((a, s) => a + balance(s), 0);
+  const paidCount = dashboardData?.stats?.paidCount ?? students.filter((s) => statusOf(s) === "Paid").length;
+  const partialCount = dashboardData?.stats?.partialCount ?? students.filter((s) => statusOf(s) === "Partial").length;
+  const unpaidCount = dashboardData?.stats?.unpaidCount ?? students.filter((s) => statusOf(s) === "Unpaid").length;
+  const studentCount = dashboardData?.stats?.totalStudents ?? students.length;
 
-  const collectionPercent = expected > 0 ? Math.round((collected / expected) * 100) : 0;
+  const collectionPercent =
+    dashboardData?.stats?.collectionRate ??
+    (expected > 0 ? Math.round((collected / expected) * 100) : 0);
 
   // Term-by-Term Revenue Comparison Data
   const termComparison = useMemo(() => {
@@ -52,6 +59,13 @@ export default function Overview() {
 
   // Revenue by Category
   const revenueByCategory = useMemo(() => {
+    if (dashboardData?.categoryBreakdown && dashboardData.categoryBreakdown.length > 0) {
+      return dashboardData.categoryBreakdown.map((c) => ({
+        category: c.name,
+        amount: c.amount,
+      }));
+    }
+
     let tuition = 0;
     let books = 0;
     let uniform = 0;
@@ -76,22 +90,29 @@ export default function Overview() {
       { category: "Uniforms", amount: uniform || Math.round(collected * 0.08) },
       { category: "Levies & Excursions", amount: other || Math.round(collected * 0.05) },
     ];
-  }, [payments, collected]);
+  }, [dashboardData, payments, collected]);
 
   // Outstanding Debt by Class
   const byClass = useMemo(() => {
+    if (dashboardData?.classDebtList && dashboardData.classDebtList.length > 0) {
+      return dashboardData.classDebtList.map((c) => ({
+        className: c.className,
+        debt: c.debt,
+      }));
+    }
+
     const map = new Map<string, number>();
     students.forEach((s) => {
       map.set(s.className, (map.get(s.className) || 0) + balance(s));
     });
     return Array.from(map.entries()).map(([className, debt]) => ({ className, debt }));
-  }, [students]);
+  }, [dashboardData, students]);
 
   return (
     <DashboardShell title="Executive Overview">
       {/* Top 4 KPI Metric Cards */}
       <OverviewStatCards
-        studentCount={students.length}
+        studentCount={studentCount}
         paidCount={paidCount}
         partialCount={partialCount}
         unpaidCount={unpaidCount}

@@ -1,18 +1,19 @@
 import { Link, useNavigate } from "react-router-dom";
 import { BrandLogo } from "@/components/brand-logo";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
 import {
   useStore,
-  addSchool,
   updateSchool,
   logout,
   useSuperAdminAuth,
   School,
+  syncBackendSchools,
 } from "@/lib/store";
+import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import {
   Building2,
   ShieldCheck,
@@ -21,28 +22,74 @@ import {
   LogOut,
   CheckCircle2,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminMetricsGrid } from "@/components/admin/AdminMetricsGrid";
 import { OnboardSchoolModal, SchoolFormData } from "@/components/admin/OnboardSchoolModal";
 import { IntegrationRequestsTable } from "@/components/admin/IntegrationRequestsTable";
 
+const BANK_CODES: Record<string, string> = {
+  "Zenith Bank": "057",
+  "Guaranty Trust Bank": "058",
+  "Access Bank": "044",
+  "First Bank of Nigeria": "011",
+  "United Bank for Africa": "033",
+  "Fidelity Bank": "070",
+  "Stanbic IBTC": "221",
+  "Wema Bank": "035",
+  "Kuda Bank": "50211",
+  "OPay": "999992",
+};
+
 export default function AdminDashboard() {
   usePageTitle("Platform Control Room : Ranta Pay Super Admin");
   const { isSuperAdmin, ready } = useSuperAdminAuth();
   const navigate = useNavigate();
 
-  const schools = useStore((s) => s.schools);
+  const localSchools = useStore((s) => s.schools);
   const allStudents = useStore((s) => s.students);
   const allPayments = useStore((s) => s.payments);
 
+  const [adminStats, setAdminStats] = useState<any>(null);
+  const [backendSchools, setBackendSchools] = useState<School[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
+
+  const loadAdminData = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      const [statsRes, schoolsRes] = await Promise.all([
+        apiGet("/api/admin/stats"),
+        apiGet("/api/admin/schools"),
+      ]);
+      if (statsRes.success && statsRes.data) {
+        setAdminStats(statsRes.data);
+      }
+      if (schoolsRes.success && Array.isArray(schoolsRes.data)) {
+        setBackendSchools(schoolsRes.data);
+        syncBackendSchools(schoolsRes.data);
+      }
+    } catch (err) {
+      console.warn("Could not fetch remote admin metrics:", err);
+    } finally {
+      setLoadingData(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      loadAdminData();
+    }
+  }, [isSuperAdmin, loadAdminData]);
 
   if (ready && !isSuperAdmin) {
     navigate("/admin/login");
     return null;
   }
+
+  const schools = backendSchools.length > 0 ? backendSchools : localSchools;
 
   const totalVolume = useMemo(() => {
     return allPayments.reduce((acc, p) => acc + p.amount, 0);
@@ -63,39 +110,72 @@ export default function AdminDashboard() {
     }
 
     setIsResolving(true);
-    await new Promise((r) => setTimeout(r, 1500));
+    let resolvedAccountName = formData.accountName.trim();
+    const bankCode = BANK_CODES[formData.bankName] || "058";
 
-    const resolvedAccountName =
-      formData.accountName.trim() || `${formData.name.toUpperCase()} ENTERPRISES LTD`;
+    try {
+      const resolveRes = await apiPost("/api/admin/schools/resolve-bank", {
+        accountNumber: formData.accountNumber.trim(),
+        bankCode,
+      });
+      if (resolveRes.success && resolveRes.data?.account_name) {
+        resolvedAccountName = resolveRes.data.account_name;
+      }
+    } catch {
+      // Continue with provided account name if verification service is unavailable
+    }
 
-    const newSchool = addSchool({
+    const payload = {
       name: formData.name.trim(),
-      slug: formData.slug.trim() || formData.name.toLowerCase().replace(/\s+/g, "-"),
+      slug:
+        formData.slug.trim() ||
+        formData.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, ""),
       address: formData.address.trim() || "Lagos, Nigeria",
       phone: formData.phone.trim() || "+2348000000000",
       email: formData.email.trim() || `info@${formData.slug || "school"}.ng`,
       principal: formData.principal.trim() || "Head of School",
       bankName: formData.bankName,
       accountNumber: formData.accountNumber.trim(),
-      accountName: resolvedAccountName,
-      receiptFooter: formData.receiptFooter,
-      session: formData.session,
-      term: formData.term,
-      allowPartial: formData.allowPartial,
-    });
+      accountName: resolvedAccountName || `${formData.name.toUpperCase()} ENTERPRISES LTD`,
+      session: formData.session || "2025/2026",
+      term: formData.term || "First Term",
+    };
 
-    setIsResolving(false);
-    setOnboardOpen(false);
-
-    toast.success(
-      `${newSchool.name} onboarded successfully! Direct settlement to school bank account is now active.`
-    );
+    try {
+      const res = await apiPost("/api/admin/schools", payload);
+      if (res.success && res.data) {
+        toast.success(
+          `${res.data.name} onboarded successfully! Direct settlement subaccount provisioned.`
+        );
+        setOnboardOpen(false);
+        await loadAdminData();
+      } else {
+        toast.error(res.error || "Failed to onboard school.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to onboard school.");
+    } finally {
+      setIsResolving(false);
+    }
   };
 
-  const toggleSchoolStatus = (s: School) => {
+  const toggleSchoolStatus = async (s: School) => {
     const nextStatus = s.status === "Active" ? "Suspended" : "Active";
-    updateSchool(s.id, { status: nextStatus });
-    toast.info(`${s.name} status updated to ${nextStatus}`);
+    try {
+      const res = await apiPatch(`/api/admin/schools/${s.id}/status`, { status: nextStatus });
+      if (res.success) {
+        toast.info(`${s.name} status updated to ${nextStatus}`);
+        updateSchool(s.id, { status: nextStatus });
+        await loadAdminData();
+      } else {
+        toast.error(res.error || "Failed to update school status.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Network error updating status.");
+    }
   };
 
   return (
@@ -111,6 +191,18 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <Button
+              onClick={() => loadAdminData()}
+              variant="outline"
+              size="sm"
+              disabled={loadingData}
+              className="rounded-full text-xs"
+              title="Refresh platform metrics"
+            >
+              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loadingData ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+
             <Button
               onClick={() => {
                 logout();
@@ -129,10 +221,10 @@ export default function AdminDashboard() {
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8">
         {/* Metric Cards Grid */}
         <AdminMetricsGrid
-          totalSchools={schools.length}
-          totalStudents={allStudents.length}
-          totalVolume={totalVolume}
-          platformRevenue={platformRevenue}
+          totalSchools={adminStats?.totalSchools ?? schools.length}
+          totalStudents={adminStats?.totalStudents ?? allStudents.length}
+          totalVolume={adminStats?.totalGmv ?? totalVolume}
+          platformRevenue={adminStats?.platformCommission ?? platformRevenue}
         />
 
         {/* Institution Integration Requests Table */}

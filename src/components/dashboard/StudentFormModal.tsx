@@ -29,6 +29,7 @@ interface StudentFormModalProps {
   form: StudentFormData;
   onFormChange: (form: StudentFormData) => void;
   onSave: () => void;
+  isSaving?: boolean;
 }
 
 export function StudentFormModal({
@@ -38,6 +39,7 @@ export function StudentFormModal({
   form,
   onFormChange,
   onSave,
+  isSaving = false,
 }: StudentFormModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,9 +174,10 @@ export function StudentFormModal({
           </Button>
           <Button
             onClick={onSave}
+            disabled={isSaving}
             className="rounded-full bg-[#0052FF] text-white font-bold text-xs"
           >
-            {editing ? "Save Changes" : "Enroll Student"}
+            {isSaving ? "Saving..." : editing ? "Save Changes" : "Enroll Student"}
           </Button>
         </DialogFooter>
       </DialogContent>

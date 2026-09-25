@@ -12,19 +12,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePageTitle } from "@/hooks/use-page-title";
 import {
   useStore,
-  updateSettings,
-  updateStudent,
   totalFees,
   formatNaira,
-  addStoreItem,
-  deleteStoreItem,
-  StoreItem,
+  updateSettings,
 } from "@/lib/store";
-import { Plus, Trash2, BookOpen, ShieldCheck } from "lucide-react";
+import { StoreItem } from "@/lib/types";
+import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { Plus, Trash2, BookOpen, ShieldCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const CATEGORIES = ["Tuition", "Exam", "Books", "Uniform", "Transport", "Boarding", "Other"];
@@ -34,16 +32,39 @@ export default function FeesPage() {
   usePageTitle("Fees & Store : Ranta Pay Bursar OS");
   const school = useStore((s) => s.settings);
   const allStudents = useStore((s) => s.students);
-  const allStoreItems = useStore((s) => s.storeItems);
 
-  // Filter students and store items for active school
+  // Fee items directly from PostgreSQL backend
+  const [feeItems, setFeeItems] = useState<any[]>([]);
+  const [isLoadingFeeItems, setIsLoadingFeeItems] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadFeeItems = useCallback(async () => {
+    if (!school.id) return;
+    setIsLoadingFeeItems(true);
+    try {
+      const res = await apiGet(`/api/school/${school.id}/fee-items`);
+      if (res.success && Array.isArray(res.data)) {
+        setFeeItems(res.data);
+      }
+    } catch (err: any) {
+      console.error("Failed to load fee items:", err);
+    } finally {
+      setIsLoadingFeeItems(false);
+    }
+  }, [school.id]);
+
+  useEffect(() => {
+    loadFeeItems();
+  }, [loadFeeItems]);
+
+  // Filter students for active school
   const students = useMemo(() => {
     return allStudents.filter((s) => s.schoolId === school.id);
   }, [allStudents, school]);
 
   const schoolStoreItems = useMemo(() => {
-    return allStoreItems.filter((i) => i.schoolId === school.id);
-  }, [allStoreItems, school]);
+    return feeItems.filter((i) => i.isStoreItem);
+  }, [feeItems]);
 
   const classes = useMemo(() => {
     const list = Array.from(new Set(students.map((s) => s.className))).sort();
@@ -58,44 +79,83 @@ export default function FeesPage() {
   // New Store Item Modal State
   const [storeModalOpen, setStoreModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState<StoreItem["category"]>("Textbook");
+  const [newCategory, setNewCategory] = useState<string>("Textbook");
   const [newClass, setNewClass] = useState("All");
   const [newAmount, setNewAmount] = useState<number>(0);
   const [newDesc, setNewDesc] = useState("");
 
-  const applyToClass = () => {
+  const applyToClass = async () => {
     if (!cls || amt <= 0) return toast.error("Select a class and enter a valid fee amount.");
-    students
-      .filter((s) => s.className === cls)
-      .forEach((s) => {
-        const fees = [...s.fees];
-        const idx = fees.findIndex((f) => f.category === cat);
-        if (idx >= 0) fees[idx] = { category: cat, amount: amt, title: `${cls} ${cat}` };
-        else fees.push({ category: cat, amount: amt, title: `${cls} ${cat}` });
-        updateStudent(s.id, { fees });
+    setIsSubmitting(true);
+    try {
+      // 1. Persist/update fee item for this class in backend
+      await apiPost(`/api/school/${school.id}/fee-items`, {
+        category: cat,
+        title: `${cls} ${cat}`,
+        amount: amt,
+        className: cls,
+        isStoreItem: false,
+        inStock: true,
       });
-    toast.success(`Applied ${cat} fee of ${formatNaira(amt)} to all ${cls} students.`);
-    setAmt(0);
+
+      // 2. Update students of this class in database
+      const targetStudents = students.filter((s) => s.className === cls);
+      await Promise.all(
+        targetStudents.map((s) =>
+          apiPut(`/api/school/${school.id}/students/${s.id}`, {
+            totalFees: (s.fees?.reduce((a, f) => a + f.amount, 0) || 0) + amt,
+          })
+        )
+      );
+
+      toast.success(`Applied ${cat} fee of ${formatNaira(amt)} to all ${cls} students.`);
+      setAmt(0);
+      await loadFeeItems();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to apply fee structure.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleCreateStoreItem = () => {
+  const handleCreateStoreItem = async () => {
     if (!newTitle.trim() || newAmount <= 0) {
       return toast.error("Please enter a title and a valid price.");
     }
-    addStoreItem({
-      schoolId: school.id,
-      title: newTitle.trim(),
-      category: newCategory,
-      amount: newAmount,
-      className: newClass,
-      description: newDesc.trim() || undefined,
-      inStock: true,
-    });
-    toast.success("Store item published to parent portal.");
-    setStoreModalOpen(false);
-    setNewTitle("");
-    setNewAmount(0);
-    setNewDesc("");
+    setIsSubmitting(true);
+    try {
+      await apiPost(`/api/school/${school.id}/fee-items`, {
+        schoolId: school.id,
+        title: newTitle.trim(),
+        category: newCategory,
+        amount: newAmount,
+        className: newClass,
+        description: newDesc.trim() || undefined,
+        isStoreItem: true,
+        inStock: true,
+      });
+      toast.success("Store item published to parent portal.");
+      setStoreModalOpen(false);
+      setNewTitle("");
+      setNewAmount(0);
+      setNewDesc("");
+      await loadFeeItems();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to publish store item.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string) => {
+    if (!confirm("Are you sure you want to delete this fee item?")) return;
+    try {
+      await apiDelete(`/api/school/${school.id}/fee-items/${itemId}`);
+      toast.success("Item deleted successfully.");
+      await loadFeeItems();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete item.");
+    }
   };
 
   return (
@@ -254,12 +314,7 @@ export default function FeesPage() {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      if (confirm("Delete this store item?")) {
-                        deleteStoreItem(item.id);
-                        toast.success("Item deleted");
-                      }
-                    }}
+                    onClick={() => handleDeleteItem(item.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

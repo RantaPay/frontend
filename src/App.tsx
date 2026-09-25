@@ -24,6 +24,25 @@ import Settings from "@/pages/dashboard/Settings";
 // Super Admin Pages
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import { useAuth } from "@/lib/auth";
+
+function RequireBursarAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthed, isBursar, isSuperAdmin, ready } = useAuth();
+  if (!ready) return null;
+  if (!isAuthed || (!isBursar && !isSuperAdmin)) {
+    return <Navigate to="/school/login" replace />;
+  }
+  return <>{children}</>;
+}
+
+function RequireAdminAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthed, isSuperAdmin, ready } = useAuth();
+  if (!ready) return null;
+  if (!isAuthed || !isSuperAdmin) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
@@ -44,12 +63,54 @@ export default function App() {
         <Route path="/school/login" element={<Login />} />
         <Route path="/school/register" element={<SchoolRegister />} />
         <Route path="/register" element={<SchoolRegister />} />
-        <Route path="/school/dashboard" element={<Overview />} />
-        <Route path="/school/students" element={<Students />} />
-        <Route path="/school/fees" element={<Fees />} />
-        <Route path="/school/payments" element={<Payments />} />
-        <Route path="/school/reports" element={<Reports />} />
-        <Route path="/school/settings" element={<Settings />} />
+        <Route
+          path="/school/dashboard"
+          element={
+            <RequireBursarAuth>
+              <Overview />
+            </RequireBursarAuth>
+          }
+        />
+        <Route
+          path="/school/students"
+          element={
+            <RequireBursarAuth>
+              <Students />
+            </RequireBursarAuth>
+          }
+        />
+        <Route
+          path="/school/fees"
+          element={
+            <RequireBursarAuth>
+              <Fees />
+            </RequireBursarAuth>
+          }
+        />
+        <Route
+          path="/school/payments"
+          element={
+            <RequireBursarAuth>
+              <Payments />
+            </RequireBursarAuth>
+          }
+        />
+        <Route
+          path="/school/reports"
+          element={
+            <RequireBursarAuth>
+              <Reports />
+            </RequireBursarAuth>
+          }
+        />
+        <Route
+          path="/school/settings"
+          element={
+            <RequireBursarAuth>
+              <Settings />
+            </RequireBursarAuth>
+          }
+        />
 
         {/* Backward-compatibility aliases for existing dashboard links */}
         <Route path="/dashboard" element={<Navigate to="/school/dashboard" replace />} />
@@ -62,7 +123,14 @@ export default function App() {
         {/* Tier 4: Super Admin Operations */}
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <RequireAdminAuth>
+              <AdminDashboard />
+            </RequireAdminAuth>
+          }
+        />
 
         {/* 404 Fallback */}
         <Route path="*" element={<NotFound />} />
