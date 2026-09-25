@@ -1,10 +1,21 @@
 import { DashboardShell } from "@/components/dashboard-shell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { useStore, totalFees, balance, statusOf, formatNaira } from "@/lib/store";
-import { FileText, FileSpreadsheet, Send, MessageSquare, AlertCircle } from "lucide-react";
+import {
+  FileText,
+  FileSpreadsheet,
+  Send,
+  MessageSquare,
+  AlertCircle,
+  Search,
+  Filter,
+  X,
+  RotateCcw,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -24,6 +35,13 @@ export default function ReportsPage() {
   }, [allPayments, activeSchool]);
 
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [selectedClass, setSelectedClass] = useState("All");
+  const [q, setQ] = useState("");
+
+  const classes = useMemo(() => {
+    const list = Array.from(new Set(students.map((s) => s.className))).sort();
+    return ["All", ...list];
+  }, [students]);
 
   const termTotal = payments.reduce((a, p) => a + p.amount, 0);
   const outstanding = students.reduce((a, s) => a + balance(s), 0);
@@ -31,15 +49,39 @@ export default function ReportsPage() {
   const paid = students.filter((s) => statusOf(s) === "Paid");
   const unpaid = students.filter((s) => statusOf(s) !== "Paid");
 
+  // Debtors filtered by class and search query
+  const filteredUnpaid = useMemo(() => {
+    return unpaid.filter((s) => {
+      if (selectedClass !== "All" && s.className !== selectedClass) return false;
+      if (q.trim()) {
+        const query = q.trim().toLowerCase();
+        const matches = [s.name, s.admissionNumber, s.parentName, s.parentPhone, s.className]
+          .join(" ")
+          .toLowerCase();
+        if (!matches.includes(query)) return false;
+      }
+      return true;
+    });
+  }, [unpaid, selectedClass, q]);
+
+  const filteredDebtAmount = useMemo(() => {
+    return filteredUnpaid.reduce((sum, s) => sum + balance(s), 0);
+  }, [filteredUnpaid]);
+
+  const hasActiveDebtorFilters = selectedClass !== "All" || q.trim() !== "";
+
   const handleBroadcast = async () => {
-    if (unpaid.length === 0) {
-      return toast.info("All students have fully settled their fees. No reminders needed!");
+    const targetList = filteredUnpaid.length > 0 ? filteredUnpaid : unpaid;
+    if (targetList.length === 0) {
+      return toast.info("No debtor students to send reminders to.");
     }
     setIsBroadcasting(true);
     await new Promise((r) => setTimeout(r, 1200));
     setIsBroadcasting(false);
     toast.success(
-      `Broadcast dispatched: Sent personalized WhatsApp & SMS payment links to ${unpaid.length} parents.`
+      `Broadcast dispatched: Sent personalized WhatsApp & SMS payment links to ${targetList.length} parents${
+        selectedClass !== "All" ? ` in ${selectedClass}` : ""
+      }.`
     );
   };
 
@@ -107,26 +149,92 @@ export default function ReportsPage() {
 
         <Button
           onClick={handleBroadcast}
-          disabled={isBroadcasting || unpaid.length === 0}
+          disabled={isBroadcasting || (hasActiveDebtorFilters ? filteredUnpaid.length === 0 : unpaid.length === 0)}
           className="bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
         >
           <Send className="mr-1.5 h-4 w-4" />
-          {isBroadcasting ? "Broadcasting Reminders..." : `Broadcast Reminders to ${unpaid.length} Debtors`}
+          {isBroadcasting
+            ? "Broadcasting Reminders..."
+            : hasActiveDebtorFilters
+            ? `Broadcast Reminders to ${filteredUnpaid.length} Filtered Debtors`
+            : `Broadcast Reminders to All ${unpaid.length} Debtors`}
         </Button>
       </div>
 
       {/* Unpaid Students Table */}
       <Card className="mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex flex-col gap-3 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-bold text-foreground">Debtor Student Ledger</h3>
-            <p className="text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-foreground">Debtor Student Ledger</h3>
+              <Badge variant="outline" className="border-destructive/30 text-destructive text-xs">
+                {filteredUnpaid.length} of {unpaid.length} Owing
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
               Students with pending fee balances for {activeSchool.term}
+              {filteredDebtAmount > 0 && ` • ${formatNaira(filteredDebtAmount)} total in view`}
             </p>
           </div>
-          <Badge variant="outline" className="border-destructive/30 text-destructive text-xs">
-            {unpaid.length} Outstanding
-          </Badge>
+
+          {/* Class & Search Filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[170px]">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search debtor name, adm..."
+                className="h-8 pl-8 pr-7 text-xs"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Filter className="h-3.5 w-3.5 text-muted-foreground hidden sm:inline" />
+              <select
+                aria-label="Filter Debtors by Class"
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="All">All Classes ({unpaid.length} debtors)</option>
+                {classes
+                  .filter((c) => c !== "All")
+                  .map((c) => {
+                    const classDebtors = unpaid.filter((s) => s.className === c).length;
+                    return (
+                      <option key={c} value={c}>
+                        {c} ({classDebtors} owing)
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+
+            {hasActiveDebtorFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedClass("All");
+                  setQ("");
+                }}
+                className="h-8 text-xs text-destructive hover:bg-destructive/10 px-2"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" /> Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -145,7 +253,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {unpaid.map((s) => (
+              {filteredUnpaid.map((s) => (
                 <tr key={s.id} className="transition hover:bg-muted/20">
                   <td className="px-5 py-3 font-mono font-medium text-foreground">{s.admissionNumber}</td>
                   <td className="px-5 py-3 font-semibold text-foreground">{s.name}</td>
@@ -167,14 +275,21 @@ export default function ReportsPage() {
                   </td>
                 </tr>
               ))}
-              {unpaid.length === 0 && (
+              {unpaid.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">
                     <AlertCircle className="mx-auto h-6 w-6 text-accent mb-1" />
                     All registered students have fully cleared their fees for this term.
                   </td>
                 </tr>
-              )}
+              ) : filteredUnpaid.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">
+                    <AlertCircle className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                    No debtor students found matching your selected class or search filter.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

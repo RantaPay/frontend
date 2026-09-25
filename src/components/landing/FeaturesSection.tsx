@@ -125,7 +125,7 @@ export function FeaturesSection() {
             <div className="mt-6 rounded-2xl bg-[#FFF3D6] p-5 border border-amber-200 shadow-sm text-xs">
               <div className="flex items-center gap-2 text-amber-900 font-bold">
                 <div className="h-2 w-2 rounded-full bg-amber-500" />
-                <span>Dynamic Titan / Wema Account</span>/home/spectre/Documents/Oympus/lessons.md
+                <span>Dynamic Titan / Wema Account</span>
               </div>
               <p className="mt-2 text-[11px] font-mono font-bold text-slate-800">
                 Acc: 9920194820 (Auto-Cleared)
