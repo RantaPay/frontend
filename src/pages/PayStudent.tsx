@@ -301,6 +301,8 @@ export default function PayStudent() {
               onMethodChange={setMethod}
               onOpenCheckout={handleOpenCheckout}
               isProcessing={isProcessing}
+              wemaAccountNumber={student.wemaAccountNumber}
+              wemaAccountName={student.wemaAccountName}
             />
           </div>
         </div>

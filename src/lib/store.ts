@@ -253,9 +253,24 @@ export function updateSettings(patch: Partial<School>) {
 
 // Student CRUD Actions
 export function addStudent(s: Omit<Student, "id" | "paid">) {
+  const wemaAccountNumber =
+    s.wemaAccountNumber || "012" + Math.floor(1000000 + Math.random() * 9000000).toString();
+  const wemaAccountName = s.wemaAccountName || `APEX - ${s.name.toUpperCase()}`;
+
   setState((st) => ({
     ...st,
-    students: [...st.students, { ...s, id: "s" + Date.now(), paid: 0 }],
+    students: [
+      ...st.students,
+      {
+        ...s,
+        id: "s" + Date.now(),
+        paid: 0,
+        wemaAccountNumber,
+        wemaAccountName,
+        wemaBankName: "Wema Bank",
+        dvaStatus: "Active",
+      },
+    ],
   }));
 }
 

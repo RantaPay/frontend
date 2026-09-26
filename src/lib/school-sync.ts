@@ -13,6 +13,10 @@ export interface BackendStudentDTO {
   parentEmail?: string;
   totalFees: number;
   paidAmount: number;
+  wemaAccountNumber?: string;
+  wemaAccountName?: string;
+  wemaBankName?: string;
+  dvaStatus?: string;
 }
 
 export interface BackendPaymentDTO {
@@ -85,6 +89,10 @@ export async function fetchAndSyncSchool(schoolId: string): Promise<DashboardDat
         parentPhone: s.parentPhone,
         parentEmail: s.parentEmail,
         paid: s.paidAmount ?? 0,
+        wemaAccountNumber: s.wemaAccountNumber,
+        wemaAccountName: s.wemaAccountName,
+        wemaBankName: s.wemaBankName || "Wema Bank",
+        dvaStatus: s.dvaStatus || "Active",
         fees: [
           {
             category: "Tuition",

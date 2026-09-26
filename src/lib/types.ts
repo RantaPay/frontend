@@ -26,6 +26,10 @@ export type Student = {
   parentEmail?: string;
   fees: FeeItem[];
   paid: number;
+  wemaAccountNumber?: string;
+  wemaAccountName?: string;
+  wemaBankName?: string;
+  dvaStatus?: string;
 };
 
 export type PaymentItem = {

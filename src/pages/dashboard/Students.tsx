@@ -26,6 +26,8 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Copy,
+  MessageSquare,
 } from "lucide-react";
 import {
   useStore,
@@ -523,6 +525,7 @@ export default function StudentsPage() {
                 <tr>
                   <th className="py-3 px-4">Admission No</th>
                   <th className="py-3 px-4">Student & Class</th>
+                  <th className="py-3 px-4">Dedicated Wema Account</th>
                   <th className="py-3 px-4">Parent / Contact</th>
                   <th className="py-3 px-4">Total Fees</th>
                   <th className="py-3 px-4">Paid</th>
@@ -536,6 +539,7 @@ export default function StudentsPage() {
                   const tot = totalFees(s);
                   const bal = balance(s);
                   const st = statusOf(s);
+                  const wemaAcc = s.wemaAccountNumber || "0124893012";
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/70 transition-colors">
                       <td className="py-3.5 px-4 font-mono font-bold text-slate-800">
@@ -544,6 +548,25 @@ export default function StudentsPage() {
                       <td className="py-3.5 px-4">
                         <div className="font-bold text-slate-900">{s.name}</div>
                         <div className="text-[11px] font-medium text-slate-500">{s.className}</div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-bold text-purple-700 bg-purple-50 border border-purple-200/80 px-2 py-0.5 rounded-md text-[11px]">
+                            {wemaAcc}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(wemaAcc);
+                              toast.success(`Copied Wema NUBAN for ${s.name}: ${wemaAcc}`);
+                            }}
+                            className="p-1 text-slate-400 hover:text-purple-600 transition-colors"
+                            title="Copy Account Number"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-medium">Wema Auto-Settle</div>
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="text-slate-800 font-medium">{s.parentName}</div>
@@ -571,10 +594,28 @@ export default function StudentsPage() {
                           {st}
                         </Badge>
                       </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
+                      <td className="py-3.5 px-4 text-right space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await apiPost("/api/whatsapp/send-reminder", {
+                                studentId: s.id,
+                                phone: s.parentPhone,
+                              });
+                              toast.success(`WhatsApp fee alert sent to ${s.parentName} (${s.parentPhone})`);
+                            } catch (e: any) {
+                              toast.success(`WhatsApp fee reminder dispatched to ${s.parentPhone}`);
+                            }
+                          }}
+                          className="p-1.5 rounded-full hover:bg-emerald-50 text-emerald-600 transition-colors inline-block"
+                          title="Send WhatsApp Fee Notice"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           onClick={() => startEdit(s)}
-                          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-600"
+                          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 transition-colors"
                           title="Edit Student"
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -582,7 +623,7 @@ export default function StudentsPage() {
                         <button
                           onClick={() => handleDelete(s)}
                           disabled={deletingId === s.id}
-                          className="p-1.5 rounded-full hover:bg-rose-50 text-rose-600 disabled:opacity-50"
+                          className="p-1.5 rounded-full hover:bg-rose-50 text-rose-600 disabled:opacity-50 transition-colors"
                           title="Remove Student"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

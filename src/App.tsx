@@ -25,6 +25,7 @@ import Settings from "@/pages/dashboard/Settings";
 import AdminLogin from "@/pages/admin/AdminLogin";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import { useAuth } from "@/lib/auth";
+import { WhatsAppChatModal } from "@/components/whatsapp/WhatsAppChatModal";
 
 function RequireBursarAuth({ children }: { children: React.ReactNode }) {
   const { isAuthed, isBursar, isSuperAdmin, ready } = useAuth();
@@ -135,6 +136,7 @@ export default function App() {
         {/* 404 Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <WhatsAppChatModal />
       <Toaster position="top-right" richColors />
     </ErrorBoundary>
   );

@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { CreditCard, Building2, Smartphone, Lock, Mail, MessageCircle } from "lucide-react";
+import { CreditCard, Building2, Smartphone, Lock, Mail, MessageCircle, Copy } from "lucide-react";
 import { formatNaira, StoreItem } from "@/lib/store";
+import { toast } from "sonner";
 
 interface PaymentSummaryCardProps {
   finalTuitionToPay: number;
@@ -18,6 +19,8 @@ interface PaymentSummaryCardProps {
   onMethodChange: (v: "Card" | "Bank Transfer" | "USSD" | "WhatsApp") => void;
   onOpenCheckout: () => void;
   isProcessing?: boolean;
+  wemaAccountNumber?: string;
+  wemaAccountName?: string;
 }
 
 export function PaymentSummaryCard({
@@ -32,6 +35,8 @@ export function PaymentSummaryCard({
   onMethodChange,
   onOpenCheckout,
   isProcessing = false,
+  wemaAccountNumber,
+  wemaAccountName,
 }: PaymentSummaryCardProps) {
   return (
     <Card className="rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xl shadow-slate-900/5 sticky top-24">
@@ -80,14 +85,17 @@ export function PaymentSummaryCard({
             </div>
           </label>
 
-          <label className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${method === "Bank Transfer" ? "border-[#FFB21D] bg-amber-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
+          <label className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${method === "Bank Transfer" ? "border-purple-300 bg-purple-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
             <div className="flex items-center gap-2.5">
               <RadioGroupItem value="Bank Transfer" id="m-transfer" />
               <div className="flex items-center gap-2 font-semibold text-slate-800">
-                <Building2 className="h-4 w-4 text-amber-600" />
-                <span>Bank Transfer</span>
+                <Building2 className="h-4 w-4 text-purple-600" />
+                <span>Dedicated Wema Bank Account</span>
               </div>
             </div>
+            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-800">
+              Direct Transfer
+            </span>
           </label>
 
           <label className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${method === "USSD" ? "border-[#FFB21D] bg-amber-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
@@ -100,7 +108,7 @@ export function PaymentSummaryCard({
             </div>
           </label>
 
-          <label className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${method === "WhatsApp" ? "border-[#FFB21D] bg-amber-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
+          <label className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 text-xs transition-colors ${method === "WhatsApp" ? "border-emerald-300 bg-emerald-50/40" : "border-slate-200 hover:bg-slate-50"}`}>
             <div className="flex items-center gap-2.5">
               <RadioGroupItem value="WhatsApp" id="m-whatsapp" />
               <div className="flex items-center gap-2 font-semibold text-slate-800">
@@ -108,11 +116,43 @@ export function PaymentSummaryCard({
                 <span>Pay via WhatsApp</span>
               </div>
             </div>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-              Instant
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              Conversational
             </span>
           </label>
         </RadioGroup>
+
+        {/* Dedicated Wema Bank Account Card */}
+        {method === "Bank Transfer" && (
+          <div className="mt-3 p-3.5 rounded-xl border border-purple-200 bg-purple-50/70 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-purple-950">Student's Dedicated Account</span>
+              <span className="text-[10px] bg-purple-200/90 text-purple-900 font-bold px-2 py-0.5 rounded-full">
+                Auto-Settled
+              </span>
+            </div>
+            <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-purple-100 shadow-sm">
+              <div>
+                <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Wema Bank NUBAN</div>
+                <div className="font-mono text-base font-black text-slate-900">{wemaAccountNumber || "0124893012"}</div>
+                <div className="text-[10px] text-slate-600 font-bold">{wemaAccountName || "APEX - STUDENT"}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(wemaAccountNumber || "0124893012");
+                  toast.success(`Copied Wema NUBAN: ${wemaAccountNumber || "0124893012"}`);
+                }}
+                className="px-2.5 py-1.5 text-xs font-bold bg-purple-100 hover:bg-purple-200 text-purple-900 rounded-lg transition-colors flex items-center gap-1"
+              >
+                <Copy className="h-3 w-3" /> Copy
+              </button>
+            </div>
+            <p className="text-[11px] text-purple-900 leading-tight">
+              Transfer exact amount from any bank app. Direct webhook auto-reconciles the payment instantly.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Optional Contact Inputs */}
