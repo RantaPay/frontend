@@ -23,7 +23,7 @@ const AUDIENCE_CONTENT: Record<Audience, AudienceContent> = {
   parents: {
     leadWord: "The",
     keyword: "easiest",
-    headlineRest: "way to make school payments .",
+    headlineRest: "way to make school payments",
     description:
       "Pay your child's fees, books, and uniforms from home. Get an instant verified digital clearance receipt on your phone.",
     primaryCtaText: "Pay School Fees",
@@ -33,7 +33,7 @@ const AUDIENCE_CONTENT: Record<Audience, AudienceContent> = {
   schools: {
     leadWord: "The",
     keyword: "clearest",
-    headlineRest: "way to collect school fees .",
+    headlineRest: "way to collect school fees",
     description:
       "See every fee payment the moment it enters your school bank account. Stop chasing unpaid fees with paper records and automatically issue verified payment receipts.",
     primaryCtaText: "School Bursar Portal",
