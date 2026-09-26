@@ -80,6 +80,23 @@ export function WhatsAppChatModal() {
     }
   }, [messages, isLoading, activeTab]);
 
+  // Handle ESC key and backdrop scroll lock
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isOpen]);
+
   const handleLinkPhone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!admissionNumber.trim() || !parentPhone.trim()) {
@@ -213,10 +230,21 @@ export function WhatsAppChatModal() {
         </span>
       </button>
 
-      {/* WhatsApp Modal Window */}
+      {/* WhatsApp Modal Backdrop & Centered Overlay */}
       {isOpen && (
-        <div className="fixed inset-0 sm:inset-auto sm:bottom-22 sm:right-6 z-50 flex flex-col w-full sm:w-[430px] h-full sm:h-[640px] bg-[#EFEAE2] sm:rounded-3xl shadow-2xl border border-slate-300/80 overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
-          {/* Header */}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setIsOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="WhatsApp Bursary Assistant"
+        >
+          {/* Modal Card - Distinct, bounded, never covers the full page */}
+          <div
+            className="relative flex flex-col w-full max-w-[420px] h-[82vh] max-h-[620px] min-h-[460px] bg-[#EFEAE2] rounded-3xl shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
           <div className="bg-[#075E54] text-white px-4 py-3.5 flex items-center justify-between shadow-md shrink-0">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -531,6 +559,7 @@ export function WhatsAppChatModal() {
               </form>
             </div>
           )}
+          </div>
         </div>
       )}
     </>
