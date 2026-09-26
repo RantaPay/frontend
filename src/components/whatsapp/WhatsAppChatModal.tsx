@@ -215,33 +215,43 @@ export function WhatsAppChatModal() {
       {/* Floating Launcher Button - Public Parent Portal Only */}
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full bg-[#25D366] px-4 py-3.5 text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-[#1EBE5D] active:scale-95 group focus:outline-none focus:ring-4 focus:ring-[#25D366]/30 cursor-pointer"
-        aria-label="Open WhatsApp Bursary Assistant"
+        className="fixed bottom-6 right-4 sm:right-6 z-50 flex items-center gap-2.5 rounded-full bg-[#25D366] px-4 py-3.5 text-white shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-[#1EBE5D] active:scale-95 group focus:outline-none focus:ring-4 focus:ring-[#25D366]/30 cursor-pointer"
+        aria-label={isOpen ? "Close WhatsApp Bursary Assistant" : "Open WhatsApp Bursary Assistant"}
       >
         <div className="relative">
-          <MessageSquare className="h-6 w-6 text-white fill-white" />
-          <span className="absolute -top-1 -right-1 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-100 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-          </span>
+          {isOpen ? (
+            <X className="h-6 w-6 text-white" />
+          ) : (
+            <>
+              <MessageSquare className="h-6 w-6 text-white fill-white" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-100 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+              </span>
+            </>
+          )}
         </div>
         <span className="text-xs font-black tracking-wide hidden sm:inline-block">
-          WhatsApp Bursary Pay
+          {isOpen ? "Close Assistant" : "WhatsApp Bursary Pay"}
         </span>
       </button>
 
-      {/* WhatsApp Modal Backdrop & Centered Overlay */}
+      {/* WhatsApp Modal Window - Anchored Directly Above the Launcher Button */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-6 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200"
-          onClick={() => setIsOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="WhatsApp Bursary Assistant"
-        >
-          {/* Modal Card - Distinct, bounded, never covers the full page */}
+        <>
+          {/* Subtle click-outside backdrop to dismiss */}
           <div
-            className="relative flex flex-col w-full max-w-[420px] h-[82vh] max-h-[620px] min-h-[460px] bg-[#EFEAE2] rounded-3xl shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-200"
+            className="fixed inset-0 z-40 bg-black/25 sm:bg-transparent backdrop-blur-[1px] sm:backdrop-blur-none transition-opacity"
+            onClick={() => setIsOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Floating Chat Card popping up from the bottom-right button */}
+          <div
+            className="fixed bottom-22 right-3 sm:right-6 z-50 flex flex-col w-[calc(100vw-24px)] sm:w-[410px] max-w-[420px] h-[74vh] max-h-[600px] min-h-[440px] bg-[#EFEAE2] rounded-3xl shadow-2xl border border-slate-300/80 overflow-hidden origin-bottom-right animate-in fade-in slide-in-from-bottom-5 zoom-in-95 duration-200"
+            role="dialog"
+            aria-modal="true"
+            aria-label="WhatsApp Bursary Assistant"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -560,7 +570,7 @@ export function WhatsAppChatModal() {
             </div>
           )}
           </div>
-        </div>
+        </>
       )}
     </>
   );
