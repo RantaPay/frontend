@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
 import {
   MessageSquare,
   X,
@@ -30,15 +29,16 @@ interface ChatMessage {
 
 export function WhatsAppChatModal() {
   const location = useLocation();
-  const { isAuthed, isBursar, isSuperAdmin } = useAuth();
 
-  // 1. Requirement: Hide the button completely when inside the School Bursar Dashboard or Admin routes
+  // Hide the floating WhatsApp button once a user enters the School Bursar Dashboard or Admin Dashboard
   const isDashboardRoute =
-    location.pathname.startsWith("/school") ||
     location.pathname.startsWith("/dashboard") ||
-    location.pathname.startsWith("/admin");
+    location.pathname.startsWith("/admin/dashboard") ||
+    (location.pathname.startsWith("/school/") &&
+      !location.pathname.startsWith("/school/login") &&
+      !location.pathname.startsWith("/school/register"));
 
-  if (isDashboardRoute || (isAuthed && (isBursar || isSuperAdmin))) {
+  if (isDashboardRoute) {
     return null;
   }
 
